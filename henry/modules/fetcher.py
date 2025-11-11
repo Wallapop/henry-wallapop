@@ -14,6 +14,7 @@ from typing import (
     Tuple,
     Union,
     cast,
+    List,
 )
 
 import tabulate
@@ -146,41 +147,57 @@ class Fetcher:
     def get_explores(
         self, *, model: Optional[str] = None, explore: Optional[str] = None
     ) -> Sequence[models.LookmlModelExplore]:
-        """Returns a list of explores."""
-        try:
-            if model and explore:
-                explores = [self.sdk.lookml_model_explore(model, explore)]
-            elif not explore:
-                all_models = self.get_models(model=model)
-                explores = []
-                for m in all_models:
-                    assert isinstance(m.name, str)
-                    assert isinstance(m.explores, list)
-                    explores.extend(
-                        list(
-                            filter(None,
-                                    [
-                                      self.lookml_model_explore(m.name, cast(str, e.name))
-                                      for e in m.explores
-                                    ]
-                            )
-                        )
+        """Returns a list of explores.
+
+        If an individual explore is not found, it is logged and skipped instead of
+        raising an exception so processing can continue.
+        """
+        explores: List[models.LookmlModelExplore] = []
+
+        if model and explore:
+            fetched = self.lookml_model_explore(model, explore)
+            if fetched:
+                explores.append(fetched)
+            else:
+                print(
+                    f"Explore not found (skipping): model={model} explore={explore}"
+                )
+            return explores
+
+        # If no specific explore requested, iterate all models (optionally filtered by model)
+        all_models = self.get_models(model=model)
+        for m in all_models:
+            assert isinstance(m.name, str)
+            assert isinstance(m.explores, list)
+            for e in m.explores:
+                fetched = self.lookml_model_explore(m.name, cast(str, e.name))
+                if fetched:
+                    explores.append(fetched)
+                else:
+                    print(
+                        f"Explore not found (skipping): model={m.name} explore={e.name}"
                     )
-        except error.SDKError:
-            raise exceptions.NotFoundError(
-                f"An error occured while getting model:{model}/explore:{explore}."
-            )
         return explores
 
-    def lookml_model_explore(self, model: str, explore: str):
+    def lookml_model_explore(self, model: str, explore: str) -> Optional[models.LookmlModelExplore]:
+        """Wrapper around SDK call that returns None if an explore isn't found.
+
+        Any other SDK errors are re-raised.
+        """
         try:
             return self.sdk.lookml_model_explore(model, explore)
         except error.SDKError as e:
-            if e.message == 'Not found':
-                print(f"No Data Found while getting model {model}/explore {explore}.")
-            else:
-                raise
-        return []
+            # The Looker SDK raises an SDKError with message 'Not found' when the
+            # explore doesn't exist. We swallow that and return None so callers can
+            # continue processing.
+            msg = getattr(e, "message", "") or str(e)
+            if msg == "Not found" or "An error has occurred" in msg:
+                print(
+                    f"Skipping explore due to SDKError: model={model} explore={explore} msg='{msg}'"
+                )
+                return None
+            # For any other kind of error, bubble up so the caller can decide.
+            raise
 
     def get_used_explores(
         self, *, model: Optional[str] = None, explore: str = ""
