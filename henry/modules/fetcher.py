@@ -31,7 +31,14 @@ TResult = MutableSequence[Dict[str, Union[str, int, bool]]]
 
 class Fetcher:
     def __init__(self, options: "Input"):
-        self.timeframe = f"{options.timeframe} days" if options.timeframe else "90 days"
+        # Backwards-compatible timeframe string (numeric days) retained for display
+        self.timeframe = f"{options.timeframe} days" if options.timeframe else "1 complete days"
+        # Build date filter; if explicit start/end provided they override timeframe
+        self.date_filter = self._build_date_filter(
+            timeframe=options.timeframe,
+            start_date=options.start_date,
+            end_date=options.end_date,
+        )
         self.min_queries = options.min_queries or 0
         self.limit = options.limit[0] if options.limit else None
         self.sortkey = options.sortkey
@@ -129,7 +136,7 @@ class Fetcher:
                 view="history",
                 fields=["history.query_run_count", "query.model"],
                 filters={
-                    "history.created_date": self.timeframe,
+                    "history.created_date": self.date_filter,
                     "query.model": "-system^_^_activity, -i^_^_looker",
                     "history.query_run_count": ">0",
                     "user.dev_branch_name": "NULL",
@@ -212,7 +219,7 @@ class Fetcher:
                 view="history",
                 fields=["query.view", "history.query_run_count"],
                 filters={
-                    "history.created_date": self.timeframe,
+                    "history.created_date": self.date_filter,
                     "query.model": model.replace("_", "^_") if model else "",
                     "history.query_run_count": ">0",
                     "query.view": explore,
@@ -266,7 +273,7 @@ class Fetcher:
                     "history.query_run_count",
                 ],
                 filters={
-                    "history.created_date": self.timeframe,
+                    "history.created_date": self.date_filter,
                     "query.model": model.replace("_", "^_"),
                     "query.view": explore.replace("_", "^_") if explore else "",
                     "query.formatted_fields": "-NULL",
@@ -450,6 +457,58 @@ class Fetcher:
         if not self.quiet:
             self._tabularize_and_print(data)
 
+    # ------------------------------------------------------------------
+    # Date filter helper methods
+    # ------------------------------------------------------------------
+    def _build_date_filter(
+        self,
+        *,
+        timeframe: Optional[int],
+        start_date: Optional[str],
+        end_date: Optional[str],
+    ) -> str:
+        """Return a Looker date filter string for history.created_date.
+
+        Precedence:
+        - If both start_date and end_date are provided: "start to end".
+        - If only one of start_date/end_date is provided: raise ValueError.
+        - Else fall back to timeframe in days (e.g. "90 days").
+
+        Accepted formats for start/end: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS.
+        Returned format mirrors provided inputs (no implicit timezone handling).
+        """
+        if start_date or end_date:
+            if not (start_date and end_date):
+                raise ValueError(
+                    "Both --start-date and --end-date must be supplied together."
+                )
+            s = self._validate_date_string(start_date)
+            e = self._validate_date_string(end_date)
+            if s > e:
+                raise ValueError("start_date must be <= end_date")
+            return f"{s} to {e}"
+        # Fallback timeframe (default Looker relative date syntax)
+        days = timeframe if timeframe is not None else 90
+        return f"{days} days"
+
+    def _validate_date_string(self, value: str) -> str:
+        value = value.strip()
+        # Basic ISO date or datetime pattern
+        date_pattern = re.compile(
+            r"^\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}:\d{2})?$"
+        )
+        if not date_pattern.match(value):
+            raise ValueError(
+                "Date must be in 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS' format."
+            )
+        # Additional semantic validation via datetime parser
+        try:
+            # datetime.fromisoformat handles both date and date time
+            datetime.datetime.fromisoformat(value.replace(" ", "T"))
+        except ValueError as e:
+            raise ValueError(f"Invalid date string '{value}': {e}")
+        return value
+
 
 class Input(NamedTuple):
     command: str
@@ -458,6 +517,8 @@ class Input(NamedTuple):
     model: Optional[str] = None
     explore: Optional[str] = None
     timeframe: Optional[int] = 90
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     min_queries: Optional[int] = 0
     sortkey: Optional[Tuple[str, str]] = None
     limit: Optional[Sequence[int]] = None

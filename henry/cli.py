@@ -97,6 +97,12 @@ def setup_analyze_subparser(subparsers):
         nargs=1,
         help="Limit results. No limit by default",
     )
+    analyze_projects.add_argument(
+        "--start-date", type=str, default=None, help="Absolute start date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
+    )
+    analyze_projects.add_argument(
+        "--end-date", type=str, default=None, help="Absolute end date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
+    )
     add_common_arguments(analyze_projects)
 
     analyze_models = analyze_subparsers.add_parser("models")
@@ -127,6 +133,12 @@ def setup_analyze_subparser(subparsers):
         default=None,
         nargs=1,
         help="Limit results. No limit by default",
+    )
+    analyze_models.add_argument(
+        "--start-date", type=str, default=None, help="Absolute start date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
+    )
+    analyze_models.add_argument(
+        "--end-date", type=str, default=None, help="Absolute end date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
     )
     add_common_arguments(analyze_models)
 
@@ -162,6 +174,12 @@ def setup_analyze_subparser(subparsers):
         nargs=1,
         help="Limit results. No limit by default",
     )
+    analyze_explores.add_argument(
+        "--start-date", type=str, default=None, help="Absolute start date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
+    )
+    analyze_explores.add_argument(
+        "--end-date", type=str, default=None, help="Absolute end date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
+    )
     add_common_arguments(analyze_explores)
 
 
@@ -196,6 +214,12 @@ def setup_vacuum_subparser(subparsers):
         "queries in the given usage period will "
         "be vacuumed. Default: 0 queries.",
     )
+    vacuum_models.add_argument(
+        "--start-date", type=str, default=None, help="Absolute start date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
+    )
+    vacuum_models.add_argument(
+        "--end-date", type=str, default=None, help="Absolute end date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
+    )
     add_common_arguments(vacuum_models)
 
     vacuum_explores.add_argument(
@@ -217,6 +241,12 @@ def setup_vacuum_subparser(subparsers):
 
     vacuum_explores.add_argument(
         "--min-queries", type=int, default=0, help="Query threshold"
+    )
+    vacuum_explores.add_argument(
+        "--start-date", type=str, default=None, help="Absolute start date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
+    )
+    vacuum_explores.add_argument(
+        "--end-date", type=str, default=None, help="Absolute end date (YYYY-MM-DD[ HH:MM:SS]) overrides timeframe"
     )
     add_common_arguments(vacuum_explores)
 
